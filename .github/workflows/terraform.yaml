@@ -1,0 +1,64 @@
+name: Terraform Pipeline
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Terraform/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'Terraform/**'
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+
+jobs:
+  terraform:
+    name: Terraform
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.7
+
+      - name: Terraform Format
+        run: terraform fmt -check -recursive
+        working-directory: Terraform
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: Terraform
+
+      - name: Run Checkov scan
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: Terraform
+          soft_fail: true
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: Terraform
+
+      - name: Terraform Plan
+        run: terraform plan
+        working-directory: Terraform
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -auto-approve
+        working-directory: Terraform
