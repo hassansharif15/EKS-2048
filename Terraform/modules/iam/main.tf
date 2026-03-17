@@ -111,3 +111,52 @@ resource "aws_iam_role_policy" "certmanager_policy" {
     ]
   })
 }
+
+# ExternalDNS IAM role - allows ExternalDNS to manage Route53 records
+resource "aws_iam_role" "externaldns_role" {
+  name = "${var.project_name}-externaldns-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = var.oidc_provider_arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${var.oidc_provider_url}:sub" = "system:serviceaccount:kube-system:external-dns"
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "externaldns_policy" {
+  name = "${var.project_name}-externaldns-policy"
+  role = aws_iam_role.externaldns_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "route53:ChangeResourceRecordSets"
+        ]
+        Resource = "arn:aws:route53:::hostedzone/*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "route53:ListHostedZones",
+          "route53:ListResourceRecordSets"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
