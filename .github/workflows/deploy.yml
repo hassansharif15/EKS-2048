@@ -78,7 +78,7 @@ jobs:
 
       - name: Install ArgoCD
         run: |
-        kubectl create namespace argocd --dry-run=client -o yaml | \
+          kubectl create namespace argocd --dry-run=client -o yaml | \
             kubectl apply -f -
           kubectl apply -n argocd \
             --server-side \
@@ -88,7 +88,7 @@ jobs:
             deployment/argocd-server \
             -n argocd \
             --timeout=180s
-
+          
       - name: Apply ArgoCD Application
         run: |
           kubectl apply -f k8s/argocd-app.yaml
