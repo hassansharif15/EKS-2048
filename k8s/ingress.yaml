@@ -1,0 +1,16 @@
+spec:
+  tls:
+    - hosts:
+        - eks.devopsbyhassan.com        # updated
+      secretName: eks-2048-tls
+  rules:
+    - host: eks.devopsbyhassan.com      # updated
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: eks-2048-service
+                port:
+                  number: 80

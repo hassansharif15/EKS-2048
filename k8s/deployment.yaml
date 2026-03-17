@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eks-2048
+  namespace: default
+  labels:
+    app: eks-2048
+spec:
+  replicas: 2                    # run 2 copies of the app for high availability
+  selector:
+    matchLabels:
+      app: eks-2048
+  template:
+    metadata:
+      labels:
+        app: eks-2048
+    spec:
+      containers:
+        - name: eks-2048
+          image: ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/eks-2048:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "64Mi"     # minimum memory guaranteed to the container
+              cpu: "250m"        # minimum CPU (250 millicores = 0.25 CPU)
+            limits:
+              memory: "128Mi"    # maximum memory the container can use
+              cpu: "500m"        # maximum CPU the container can use
+          livenessProbe:         # restarts container if it becomes unhealthy
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:        # only sends traffic when container is ready
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
