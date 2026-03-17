@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: eks-2048
+  namespace: argocd
+spec:
+  project: default
+
+  # where to get the manifests from
+  source:
+    repoURL: https://github.com/hassansharif15/EKS-2048.git
+    targetRevision: HEAD
+    path: k8s
+
+  # where to deploy them to
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+
+  syncPolicy:
+    automated:
+      prune: true       # removes resources deleted from git
+      selfHeal: true    # auto fixes if someone manually changes cluster
+    syncOptions:
+      - CreateNamespace=true

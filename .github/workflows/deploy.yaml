@@ -5,8 +5,8 @@ on:
     branches:
       - main
     paths:
-      - 'k8s/**'        # runs when k8s files change
-      - 'app/**'        # runs when app files change
+      - 'k8s/**'
+      - 'app/**'
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
@@ -19,11 +19,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1 - checkout code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2 - configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -31,14 +29,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # Step 3 - connect kubectl to EKS cluster
       - name: Configure kubectl
         run: |
           aws eks update-kubeconfig \
             --name ${{ env.CLUSTER_NAME }} \
             --region ${{ env.AWS_REGION }}
 
-      # Step 4 - install NGINX Ingress Controller
       - name: Install NGINX Ingress Controller
         run: |
           helm repo add ingress-nginx \
@@ -51,7 +47,6 @@ jobs:
             --set controller.replicaCount=2 \
             --wait
 
-      # Step 5 - install CertManager
       - name: Install CertManager
         run: |
           helm repo add jetstack https://charts.jetstack.io
@@ -64,9 +59,10 @@ jobs:
             --set installCRDs=true \
             --wait
 
-      # Step 6 - apply CertManager issuer
       - name: Apply CertManager ClusterIssuer
         run: |
+          sed -i "s/ACCOUNT_ID_PLACEHOLDER/${{ secrets.AWS_ACCOUNT_ID }}/g" \
+            k8s/certmanager-rbac.yaml
           sed -i "s/CERT_MANAGER_EMAIL_PLACEHOLDER/${{ secrets.CERT_MANAGER_EMAIL }}/g" \
             k8s/certmanager-issuer.yaml
           sed -i "s/HOSTED_ZONE_ID_PLACEHOLDER/${{ secrets.HOSTED_ZONE_ID }}/g" \
@@ -74,19 +70,45 @@ jobs:
           kubectl apply -f k8s/certmanager-rbac.yaml
           kubectl apply -f k8s/certmanager-issuer.yaml
 
-      # Step 7 - install ExternalDNS
       - name: Install ExternalDNS
         run: |
           sed -i "s/ACCOUNT_ID_PLACEHOLDER/${{ secrets.AWS_ACCOUNT_ID }}/g" \
             k8s/externaldns.yaml
           kubectl apply -f k8s/externaldns.yaml
 
-      # Step 8 - login to ECR
+      - name: Install ArgoCD
+        run: |
+          kubectl create namespace argocd --dry-run=client -o yaml | \
+            kubectl apply -f -
+          kubectl apply -n argocd -f \
+            https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+          kubectl wait --for=condition=available \
+            deployment/argocd-server \
+            -n argocd \
+            --timeout=120s
+
+      - name: Apply ArgoCD Application
+        run: |
+          kubectl apply -f k8s/argocd-app.yaml
+
+      - name: Install Prometheus and Grafana
+        run: |
+          helm repo add prometheus-community \
+            https://prometheus-community.github.io/helm-charts
+          helm repo update
+          sed -i "s/GRAFANA_PASSWORD_PLACEHOLDER/${{ secrets.GRAFANA_PASSWORD }}/g" \
+            k8s/monitoring/prometheus-values.yaml
+          helm upgrade --install kube-prometheus-stack \
+            prometheus-community/kube-prometheus-stack \
+            --namespace monitoring \
+            --create-namespace \
+            --values k8s/monitoring/prometheus-values.yaml \
+            --wait
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # Step 9 - build and push Docker image
       - name: Build and push Docker image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -96,8 +118,7 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-      # Step 10 - update deployment with new image
-      - name: Update deployment image
+      - name: Deploy to EKS
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
@@ -105,13 +126,8 @@ jobs:
             k8s/deployment.yaml
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
-
-      # Step 11 - apply ingress
-      - name: Apply Ingress
-        run: |
           kubectl apply -f k8s/ingress.yaml
 
-      # Step 12 - verify deployment
       - name: Verify deployment
         run: |
           kubectl rollout status deployment/eks-2048 --timeout=120s
