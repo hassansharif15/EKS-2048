@@ -31,17 +31,17 @@ module "vpc" {
 }
 
 module "iam" {
-  source       = "./modules/iam"
-  project_name = var.project_name
+  source            = "./modules/iam"
+  project_name      = var.project_name
   oidc_provider_arn = module.eks.oidc_provider_arn
   oidc_provider_url = module.eks.oidc_provider_url
 }
 
 module "eks" {
-  source          = "./modules/eks"
-  project_name    = var.project_name
-  vpc_id          = module.vpc.vpc_id
-  private_subnets = module.vpc.private_subnet_ids
-  node_role_arn   = module.iam.node_role_arn
+  source           = "./modules/eks"
+  project_name     = var.project_name
+  vpc_id           = module.vpc.vpc_id
+  private_subnets  = module.vpc.private_subnet_ids
+  node_role_arn    = module.iam.node_role_arn
   cluster_role_arn = module.iam.cluster_role_arn
 }

@@ -1,13 +1,13 @@
 # The EKS Cluster itself — this is the Kubernetes control plane
 resource "aws_eks_cluster" "main" {
-  name     = "${var.project_name}-cluster"   # names it "eks-2048-cluster"
-  role_arn = var.cluster_role_arn            # the IAM role we created in the IAM module
-  version  = "1.31"                          # Kubernetes version
+  name     = "${var.project_name}-cluster" # names it "eks-2048-cluster"
+  role_arn = var.cluster_role_arn          # the IAM role we created in the IAM module
+  version  = "1.31"                        # Kubernetes version
 
   vpc_config {
-    subnet_ids              = var.private_subnets    # control plane lives in private subnets
-    endpoint_private_access = true                   # cluster API accessible from inside VPC
-    endpoint_public_access  = true                   # cluster API also accessible from internet
+    subnet_ids              = var.private_subnets # control plane lives in private subnets
+    endpoint_private_access = true                # cluster API accessible from inside VPC
+    endpoint_public_access  = true                # cluster API also accessible from internet
     security_group_ids      = [aws_security_group.eks_cluster.id]
   }
 
@@ -21,21 +21,21 @@ resource "aws_eks_cluster" "main" {
 
 # The Node Group — the EC2 worker nodes that run your pods
 resource "aws_eks_node_group" "main" {
-  cluster_name    = aws_eks_cluster.main.name   # attaches to the cluster above
+  cluster_name    = aws_eks_cluster.main.name # attaches to the cluster above
   node_group_name = "${var.project_name}-nodes"
-  node_role_arn   = var.node_role_arn           # IAM role for the nodes
-  subnet_ids      = var.private_subnets         # nodes live in private subnets
+  node_role_arn   = var.node_role_arn   # IAM role for the nodes
+  subnet_ids      = var.private_subnets # nodes live in private subnets
 
-  instance_types = ["t3.medium"]   # 2 vCPU, 4GB RAM — enough for this project
+  instance_types = ["t3.medium"] # 2 vCPU, 4GB RAM — enough for this project
 
   scaling_config {
-    desired_size = 2    # start with 2 nodes
-    min_size     = 1    # scale down to 1 if needed
-    max_size     = 3    # scale up to 3 under load
+    desired_size = 2 # start with 2 nodes
+    min_size     = 1 # scale down to 1 if needed
+    max_size     = 3 # scale up to 3 under load
   }
 
   update_config {
-    max_unavailable = 1   # only take down 1 node at a time during updates
+    max_unavailable = 1 # only take down 1 node at a time during updates
   }
 
   # ensures cluster and IAM role exist before creating nodes
@@ -53,7 +53,7 @@ resource "aws_eks_node_group" "main" {
 resource "aws_security_group" "eks_cluster" {
   name        = "${var.project_name}-cluster-sg"
   description = "Security group for EKS cluster control plane"
-  vpc_id      = var.vpc_id    # lives inside our VPC
+  vpc_id      = var.vpc_id # lives inside our VPC
 
   # allow all outbound traffic from the cluster
   egress {
@@ -79,7 +79,7 @@ resource "aws_security_group" "eks_nodes" {
     from_port = 0
     to_port   = 0
     protocol  = "-1"
-    self      = true    # "self" means other resources in this same security group
+    self      = true # "self" means other resources in this same security group
   }
 
   # allow control plane to talk to nodes
