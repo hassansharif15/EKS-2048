@@ -31,17 +31,13 @@ jobs:
 
       - name: Configure kubectl
         run: |
-          aws eks update-kubeconfig \
-            --name ${{ env.CLUSTER_NAME }} \
-            --region ${{ env.AWS_REGION }}
+          aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
 
       - name: Install NGINX Ingress Controller
         run: |
-          helm repo add ingress-nginx \
-            https://kubernetes.github.io/ingress-nginx
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
           helm repo update
-          helm upgrade --install ingress-nginx \
-            ingress-nginx/ingress-nginx \
+          helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
             --namespace ingress-nginx \
             --create-namespace \
             --set controller.replicaCount=2 \
@@ -51,8 +47,7 @@ jobs:
         run: |
           helm repo add jetstack https://charts.jetstack.io
           helm repo update
-          helm upgrade --install cert-manager \
-            jetstack/cert-manager \
+          helm upgrade --install cert-manager jetstack/cert-manager \
             --namespace cert-manager \
             --create-namespace \
             --version v1.14.0 \
@@ -61,47 +56,33 @@ jobs:
 
       - name: Apply CertManager ClusterIssuer
         run: |
-          sed -i "s/ACCOUNT_ID_PLACEHOLDER/${{ secrets.AWS_ACCOUNT_ID }}/g" \
-            k8s/certmanager-rbac.yaml
-          sed -i "s/CERT_MANAGER_EMAIL_PLACEHOLDER/${{ secrets.CERT_MANAGER_EMAIL }}/g" \
-            k8s/certmanager-issuer.yaml
-          sed -i "s/HOSTED_ZONE_ID_PLACEHOLDER/${{ secrets.HOSTED_ZONE_ID }}/g" \
-            k8s/certmanager-issuer.yaml
+          sed -i "s/ACCOUNT_ID_PLACEHOLDER/${{ secrets.AWS_ACCOUNT_ID }}/g" k8s/certmanager-rbac.yaml
+          sed -i "s/CERT_MANAGER_EMAIL_PLACEHOLDER/${{ secrets.CERT_MANAGER_EMAIL }}/g" k8s/certmanager-issuer.yaml
+          sed -i "s/HOSTED_ZONE_ID_PLACEHOLDER/${{ secrets.HOSTED_ZONE_ID }}/g" k8s/certmanager-issuer.yaml
           kubectl apply -f k8s/certmanager-rbac.yaml
           kubectl apply -f k8s/certmanager-issuer.yaml
 
       - name: Install ExternalDNS
         run: |
-          sed -i "s/ACCOUNT_ID_PLACEHOLDER/${{ secrets.AWS_ACCOUNT_ID }}/g" \
-            k8s/externaldns.yaml
+          sed -i "s/ACCOUNT_ID_PLACEHOLDER/${{ secrets.AWS_ACCOUNT_ID }}/g" k8s/externaldns.yaml
           kubectl apply -f k8s/externaldns.yaml
 
       - name: Install ArgoCD
         run: |
-          kubectl create namespace argocd --dry-run=client -o yaml | \
-            kubectl apply -f -
-          kubectl apply -n argocd \
-            --server-side \
-            --force-conflicts \
-            -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-          kubectl wait --for=condition=available \
-            deployment/argocd-server \
-            -n argocd \
-            --timeout=180s
-          
+          kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -n argocd --server-side --force-conflicts -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+          kubectl wait --for=condition=available deployment/argocd-server -n argocd --timeout=180s
+
       - name: Apply ArgoCD Application
         run: |
           kubectl apply -f k8s/argocd-app.yaml
 
       - name: Install Prometheus and Grafana
         run: |
-          helm repo add prometheus-community \
-            https://prometheus-community.github.io/helm-charts
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
           helm repo update
-          sed -i "s/GRAFANA_PASSWORD_PLACEHOLDER/${{ secrets.GRAFANA_PASSWORD }}/g" \
-            k8s/monitoring/prometheus-values.yaml
-          helm upgrade --install kube-prometheus-stack \
-            prometheus-community/kube-prometheus-stack \
+          sed -i "s/GRAFANA_PASSWORD_PLACEHOLDER/${{ secrets.GRAFANA_PASSWORD }}/g" k8s/monitoring/prometheus-values.yaml
+          helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
             --namespace monitoring \
             --create-namespace \
             --values k8s/monitoring/prometheus-values.yaml \
@@ -115,8 +96,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }} \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./app
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }} -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./app
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
@@ -124,8 +104,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          sed -i "s|ACCOUNT_ID_PLACEHOLDER|${{ secrets.AWS_ACCOUNT_ID }}|g" \
-            k8s/deployment.yaml
+          sed -i "s|ACCOUNT_ID_PLACEHOLDER|${{ secrets.AWS_ACCOUNT_ID }}|g" k8s/deployment.yaml
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
           kubectl apply -f k8s/ingress.yaml
